@@ -99,8 +99,6 @@
       ISMOBILE ? "touchstart" : "mousedown",
       ISMOBILE ? "touchend"   : "mouseup"
     ],
-    currentState: "",
-    isReady: 0,
 
     init: function(config) {
       var option = ""
@@ -281,14 +279,13 @@
       this.style.cssText += this.cssText + cssText
     },
     _getAlphaPixel: function(x, y) {
-      return this.imgdata ? this.imgdata[((y * this.width) + x)] : -1
+      return this.imgdata[((y * this.width) + x)]
     },
     _ready: function() {
       this._createElements()
       this._setStyle()
       this._bindEvents()
       this.setState("ENABLED")
-      this.isReady = 1
       this._triggerEvent("ready")
     }
   }
