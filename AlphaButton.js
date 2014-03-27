@@ -196,7 +196,7 @@
     _bindEvents: function() {
       var len = this.events.length
 
-      while(len--) this.events[len] && this.img.addEventListener(this.events[len], this, 0)
+      while(len--) this.img.addEventListener(this.events[len], this, 0)
     },
     _getShadowFilter: function(color, radius) {
       return "-webkit-filter:drop-shadow(" + (
