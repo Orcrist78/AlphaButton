@@ -1,6 +1,5 @@
-
 /**!
- * @license AlphaButton.js v0.1
+ * @license AlphaButton.js v0.1.1
  * (c) 2014 Giuseppe Scotto Lavina <mailto:gscotto78@gmail.com>
  * Available under MIT license 
  */
@@ -102,7 +101,6 @@
     ],
     currentState: "",
     isReady: 0,
-    _events: [],
 
     init: function(config) {
       var option = ""
@@ -127,8 +125,10 @@
          typeof this.options.imgEnabled !== "string")
         throw new Error("imgEnabled is mandatory!")      
 
+      this._events = []
       this._preloadImgs()
       this.setState("NOTREADY")
+      return this
     },
     on: function(type, fn) {
       this._events[type] || (this._events[type] = [])
