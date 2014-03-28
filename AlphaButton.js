@@ -264,8 +264,10 @@
       this.loadCounter || this.imgOnload()
     },
     _createElements: function() {
-      this.img || (this.img = DOC.createElement("img"))
-      this.style = this.img.style
+      if(!this.img) {
+        this.img = DOC.createElement("img")
+        this.style = this.img.style
+      }
       this.options.container.appendChild(this.img)
     },
     _setStyle: function() {
