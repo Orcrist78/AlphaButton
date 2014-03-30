@@ -1,5 +1,6 @@
+
 /**!
- * @license AlphaButton.js v0.1.1
+ * @license AlphaButton.js v0.2
  * (c) 2014 Giuseppe Scotto Lavina <mailto:gscotto78@gmail.com>
  * Available under MIT license 
  */
@@ -13,6 +14,20 @@
     ISMOBILE = "ontouchstart" in WIN,
     IMGSDATA = {},
     IMGS     = {},
+    STATES   = {
+      DISABLED: 0,
+      ENABLED:  1,
+      PRESSED:  2
+    },
+    EVENTS = [
+      "click",
+      ISMOBILE ? "touchmove"  : "mousemove",
+      ISMOBILE ? "touchleave" : "mouseout",
+      ISMOBILE ? "touchstart" : "mousedown",
+      ISMOBILE ? "touchend"   : "mouseup"
+    ],
+    NOFILTER = "-webkit-filter:none;",
+    BASECSS  = "-webkit-transition:-webkit-filter 100ms ease-in-out;" + NOFILTER,
 
   crc32 = (function(crcTable) {
     return function(str) {
@@ -78,27 +93,13 @@
 
   AlphaButton.prototype = {
     defaults: {
-      container: DOC.body,
-      threshold: 255,
-      glow: !ISMOBILE,
-      glowRadius: 9,
+      container:      DOC.body,
+      threshold:      125,
+      glow:           !ISMOBILE,
+      glowRadius:     9,
       glowColorHover: "yellow",
       glowColorPress: "red"
     },
-    cssText: "-webkit-transition:-webkit-filter 120ms ease-in-out;",
-    states: {
-      NOTREADY: "NOTREADY",
-      DISABLED: "DISABLED",
-      ENABLED: "ENABLED",
-      ACTIVE: "ACTIVE",
-      PRESSED: "PRESSED"
-    },
-    events: [
-      ISMOBILE ? "touchmove"  : "mousemove",
-      ISMOBILE ? "touchleave" : "mouseout",
-      ISMOBILE ? "touchstart" : "mousedown",
-      ISMOBILE ? "touchend"   : "mouseup"
-    ],
 
     init: function(config) {
       var option = ""
@@ -123,14 +124,40 @@
          typeof this.options.imgEnabled !== "string")
         throw new Error("imgEnabled is mandatory!")      
 
-      this._events = []
+      this._events = {}
       this._preloadImgs()
-      this.setState("NOTREADY")
+      return this
+    },
+    setState: function(state) {
+      var imgcache, imghash = ""
+
+      if(state in STATES && this.currentState !== STATES[state]) {
+        if(this.img && this.hashedUrls && state in this.hashedUrls && (imghash = this.hashedUrls[state])) {
+          imgcache = IMGS[imghash]
+          this.imgdata = IMGSDATA[imghash]
+          this.img.src = imgcache.src
+          this.height = this.img.height = imgcache.height
+          this.width = this.img.width = imgcache.width
+        }
+        if(state === "DISABLED") {
+          this._unbindEvents()
+          this._checkPointer()
+          if(!imghash)
+            this.style.cssText += "-webkit-filter:grayscale(80%);"
+        } else if(!this.eventsBinded) {
+          this._bindEvents()
+          this._checkPointer()
+        }
+
+        this.currentState = STATES[state]
+        this._triggerEvent("changestate", state)
+      }
       return this
     },
     on: function(type, fn) {
       this._events[type] || (this._events[type] = [])
       this._events[type].push(fn)
+      return this
     },
     off: function(type, fn) {
       var index = 0
@@ -138,6 +165,7 @@
       if(!this._events[type]) return
       if((index = this._events[type].indexOf(fn)) > -1)
         this._events[type].splice(index, 1)
+      return this
     },
     _triggerEvent: function(type) {
       var i = 0, len = 0
@@ -145,28 +173,17 @@
       if(!this._events[type] || !(len = this._events[type].length)) return
       for(;i < len; i++) this._events[type][i].apply(this, SLICE.call(arguments, 1))
     },
-    setState: function(state) {
-      var imgcache, imghash = ""
-      if(state in this.states && this.currentState !== this.states[state]) {
-        if(this.img && state in this.hashedUrls && (imghash = this.hashedUrls[state])) {
-          imgcache = IMGS[imghash]
-          this.imgdata = IMGSDATA[imghash]
-          this.img.src = imgcache.src
-          this.height = this.img.height = imgcache.height
-          this.width = this.img.width = imgcache.width
-        }
-        this._triggerEvent("changestate", (this.currentState = this.states[state]))
-      }
-    },
     handleEvent: function(e) {
-      e.stopPropagation()
       e.preventDefault()
+      e.stopPropagation()
+
       switch(e.type) {
         case "touchmove":
         case "mousemove":
           this._checkPointer(e)
           this.allowPointer && this._triggerEvent("mousemove", e)
           break
+        case "touchleave":
         case "mouseout":
           this._checkPointer()
           break
@@ -177,6 +194,7 @@
             if(this.options.glow)
               this.style.cssText += this._getShadowFilter(this.options.glowColorPress)
             this._triggerEvent(e.type, e)
+            this.setState("PRESSED")
           }
           break
         case "touchend":
@@ -187,21 +205,19 @@
               this.style.cssText += this._getShadowFilter()
             this._triggerEvent(e.type, e)
             this._triggerEvent("click", e)
+            this.setState("ENABLED")
           }
-          break
       }
     },
-    _bindEvents: function() {
-      var len = this.events.length
-
-      while(len--) this.img.addEventListener(this.events[len], this, 0)
+    _getAlphaPixel: function(x, y) {
+      return this.imgdata[((y * this.width) + x)]
     },
     _getShadowFilter: function(color, radius) {
       return "-webkit-filter:drop-shadow(" + (
         color || this.options.glowColorHover
       ) + " 0px 0px " + (
         radius !== 0 && !radius ? this.options.glowRadius : radius
-      ) + "px) !important;"
+      ) + "px);"
     },
     _checkPointer: function(e) {
       if(e && this._getAlphaPixel(getX(e), getY(e)) >= this.options.threshold) {
@@ -210,9 +226,9 @@
           this.style.cssText += "cursor:pointer;" + (this.options.glow ? this._getShadowFilter() : "")
           this._triggerEvent("mouseover", e)
         }
-      } else if(this.allowPointer) {
+      } else if(this.allowPointer || !e) {
         this.allowPointer = 0
-        this.style.cssText += "cursor:default;" + (this.options.glow ? "-webkit-filter:none!important;" : "")
+        this.style.cssText += "cursor:default;" + (this.options.glow ? NOFILTER : "")
         this._triggerEvent("mouseout", e)
       }
     },
@@ -248,12 +264,10 @@
           self._ready()
         }
       }
-
       this.imgOnerror = function() {
         self.imgOnload = self.imgOnerror = IMGS[this.src] = null
         throw new Error(this.src + " is not a valid img url!")
       }
-
       this.hashedUrls = {
         DISABLED: this._getImage(this.options.imgDisabled),
         ENABLED:  this._getImage(this.options.imgEnabled),
@@ -266,9 +280,9 @@
     _createElements: function() {
       if(!this.img) {
         this.img = DOC.createElement("img")
-        this.style = this.img.style
+        this.options.container.appendChild(this.img)
       }
-      this.options.container.appendChild(this.img)
+      this.style = this.img.style
     },
     _setStyle: function() {
       var
@@ -278,15 +292,23 @@
 
       for(key in style) cssText += key + ":" + style[key] + ";"
 
-      this.style.cssText += this.cssText + cssText
+      this.style.cssText += cssText + BASECSS
     },
-    _getAlphaPixel: function(x, y) {
-      return this.imgdata[((y * this.width) + x)]
+    _bindEvents: function() {
+      var len = EVENTS.length
+
+      while(len--) this.img.addEventListener(EVENTS[len], this, 0)
+      this.eventsBinded = 1
+    },
+    _unbindEvents: function() {
+      var len = EVENTS.length
+
+      while(len--) this.img.removeEventListener(EVENTS[len], this, 0)
+      this.eventsBinded = 0
     },
     _ready: function() {
       this._createElements()
       this._setStyle()
-      this._bindEvents()
       this.setState("ENABLED")
       this._triggerEvent("ready")
     }
