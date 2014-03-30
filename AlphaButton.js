@@ -1,6 +1,6 @@
 
 /**!
- * @license AlphaButton.js v0.2
+ * @license AlphaButton.js v0.3
  * (c) 2014 Giuseppe Scotto Lavina <mailto:gscotto78@gmail.com>
  * Available under MIT license 
  */
@@ -53,8 +53,8 @@
       var
         height = img.height,
         width  = img.width,
-        data   = [],
-        alpha  = data,
+        data   = null,
+        alpha  = new Uint8ClampedArray(width * height),
         len    = 0,
         i      = 0
 
@@ -65,7 +65,7 @@
       can.width = can.height = 0
 
       len = data.length
-      for(;i < len; i += 4) alpha.push(data[i + 3])
+      for(;i < len; i += 4) alpha[(i / 4) | 0] = data[i + 3]
 
       return alpha
     }
@@ -124,15 +124,27 @@
          typeof this.options.imgEnabled !== "string")
         throw new Error("imgEnabled is mandatory!")      
 
-      this._events = {}
+      this.events = {}
       this._preloadImgs()
+      return this
+    },
+    destroy: function() {
+      var prop = ""
+
+      this._unbindEvents()
+      this.style.cssText = ""
+      if(!("selector" in this.options))
+        this.options.container.removeChild(this.img)
+      for(prop in this)
+        if(this.hasOwnProperty(prop))
+          this[prop] = null
       return this
     },
     setState: function(state) {
       var imgcache, imghash = ""
 
       if(state in STATES && this.currentState !== STATES[state]) {
-        if(this.img && this.hashedUrls && state in this.hashedUrls && (imghash = this.hashedUrls[state])) {
+        if(this.img && state in this.hashedUrls && (imghash = this.hashedUrls[state])) {
           imgcache = IMGS[imghash]
           this.imgdata = IMGSDATA[imghash]
           this.img.src = imgcache.src
@@ -144,9 +156,9 @@
           this._checkPointer()
           if(!imghash)
             this.style.cssText += "-webkit-filter:grayscale(80%);"
-        } else if(!this.eventsBinded) {
+        } else if(!this.domBinded) {
           this._bindEvents()
-          this._checkPointer()
+          this.style.cssText += NOFILTER
         }
 
         this.currentState = STATES[state]
@@ -155,23 +167,23 @@
       return this
     },
     on: function(type, fn) {
-      this._events[type] || (this._events[type] = [])
-      this._events[type].push(fn)
+      this.events[type] || (this.events[type] = [])
+      this.events[type].push(fn)
       return this
     },
     off: function(type, fn) {
       var index = 0
 
-      if(!this._events[type]) return
-      if((index = this._events[type].indexOf(fn)) > -1)
-        this._events[type].splice(index, 1)
+      if(!this.events[type]) return
+      if((index = this.events[type].indexOf(fn)) > -1)
+        this.events[type].splice(index, 1)
       return this
     },
     _triggerEvent: function(type) {
       var i = 0, len = 0
 
-      if(!this._events[type] || !(len = this._events[type].length)) return
-      for(;i < len; i++) this._events[type][i].apply(this, SLICE.call(arguments, 1))
+      if(!this.events[type] || !(len = this.events[type].length)) return
+      for(;i < len; i++) this.events[type][i].apply(this, SLICE.call(arguments, 1))
     },
     handleEvent: function(e) {
       e.preventDefault()
@@ -298,13 +310,13 @@
       var len = EVENTS.length
 
       while(len--) this.img.addEventListener(EVENTS[len], this, 0)
-      this.eventsBinded = 1
+      this.domBinded = 1
     },
     _unbindEvents: function() {
       var len = EVENTS.length
 
       while(len--) this.img.removeEventListener(EVENTS[len], this, 0)
-      this.eventsBinded = 0
+      this.domBinded = 0
     },
     _ready: function() {
       this._createElements()
