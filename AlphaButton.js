@@ -1,6 +1,6 @@
 
 /**!
- * @license AlphaButton.js v0.3
+ * @license AlphaButton.js v0.4
  * (c) 2014 Giuseppe Scotto Lavina <mailto:gscotto78@gmail.com>
  * Available under MIT license 
  */
@@ -54,7 +54,7 @@
         height = img.height,
         width  = img.width,
         data   = null,
-        alpha  = new Uint8ClampedArray(width * height),
+        alpha  = new Uint8Array(width * height),
         len    = 0,
         i      = 0
 
@@ -76,15 +76,8 @@
       A.href = url
       return A.href
     }
-  })(DOC.createElement("a")),
+  })(DOC.createElement("a"))
 
-  getX = function(e) {
-    return "changedTouches" in e ? e.changedTouches[0].clientX + e.layerX : e.offsetX
-  },
-
-  getY = function(e) {
-    return "changedTouches" in e ? e.changedTouches[0].clientY + e.layerY : e.offsetY
-  }
 
 
   function AlphaButton(config) {
@@ -131,13 +124,16 @@
     destroy: function() {
       var prop = ""
 
-      this._unbindEvents()
-      this.style.cssText = ""
-      if(!("selector" in this.options))
-        this.options.container.removeChild(this.img)
+      if(this.img) {
+        this._unbindEvents()
+        this.style.cssText = ""
+        if(!("selector" in this.options))
+          this.options.container.removeChild(this.img)
+      }
       for(prop in this)
         if(this.hasOwnProperty(prop))
           this[prop] = null
+
       return this
     },
     setState: function(state) {
@@ -150,6 +146,9 @@
           this.img.src = imgcache.src
           this.height = this.img.height = imgcache.height
           this.width = this.img.width = imgcache.width
+          this.rect = this.img.getBoundingClientRect()
+          this.top = this.rect.top | 0
+          this.left = this.rect.left | 0
         }
         if(state === "DISABLED") {
           this._unbindEvents()
@@ -185,6 +184,12 @@
       if(!this.events[type] || !(len = this.events[type].length)) return
       for(;i < len; i++) this.events[type][i].apply(this, SLICE.call(arguments, 1))
     },
+    _getX: function(e) {
+      return "changedTouches" in e ? e.changedTouches[0].pageX - this.left : e.offsetX
+    },
+    _getY: function(e) {
+      return "changedTouches" in e ? e.changedTouches[0].pageY - this.top : e.offsetY
+    },
     handleEvent: function(e) {
       e.preventDefault()
       e.stopPropagation()
@@ -212,6 +217,7 @@
         case "touchend":
         case "mouseup":
           this._checkPointer(e)
+console.debug("touchend", this._getX(e), this._getY(e), this.allowPointer, this.imgdata, this._getAlphaPixel(this._getX(e), this._getY(e)))
           if(this.allowPointer) {
             if(this.options.glow)
               this.style.cssText += this._getShadowFilter()
@@ -232,7 +238,7 @@
       ) + "px);"
     },
     _checkPointer: function(e) {
-      if(e && this._getAlphaPixel(getX(e), getY(e)) >= this.options.threshold) {
+      if(e && this._getAlphaPixel(this._getX(e), this._getY(e)) >= this.options.threshold) {
         if(!this.allowPointer) {
           this.allowPointer = 1
           this.style.cssText += "cursor:pointer;" + (this.options.glow ? this._getShadowFilter() : "")
@@ -249,7 +255,17 @@
 
       if(src) {
         hash = crc32(getAbsoluteUrl(src))
-        if(hash in IMGS && IMGS[hash]) return hash
+        if(hash in IMGS && IMGS[hash]) {
+          if(!IMGS[hash].complete) {
+            this.loadCounter++
+            IMGS[hash].addEventListener("load",
+              function() {
+                this.imgOnload.call(IMGS[hash])
+              }.bind(this)
+            )
+          }
+          return hash
+        }
         this.loadCounter++
         IMGS[hash] = img = new Image()
         img.onload = this.imgOnload
@@ -277,7 +293,7 @@
         }
       }
       this.imgOnerror = function() {
-        self.imgOnload = self.imgOnerror = IMGS[this.src] = null
+        self.destroy()
         throw new Error(this.src + " is not a valid img url!")
       }
       this.hashedUrls = {
