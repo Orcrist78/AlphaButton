@@ -1,6 +1,6 @@
 
 /**!
- * @license AlphaButton.js v0.4
+ * @license AlphaButton.js v0.4.1
  * (c) 2014 Giuseppe Scotto Lavina <mailto:gscotto78@gmail.com>
  * Available under MIT license 
  */
@@ -11,7 +11,7 @@
   "use strict"
 
   var
-    ISMOBILE = "ontouchstart" in WIN,
+    ISMOBILE = "ontouchend" in WIN,
     IMGSDATA = {},
     IMGS     = {},
     STATES   = {
@@ -55,7 +55,7 @@
         width  = img.width,
         data   = null,
         alpha  = new Uint8Array(width * height),
-        len    = 0,
+        len    = width * height * 4,
         i      = 0
 
       can.width  = width
@@ -64,7 +64,6 @@
       data = ctx.getImageData(0, 0, width, height).data
       can.width = can.height = 0
 
-      len = data.length
       for(;i < len; i += 4) alpha[(i / 4) | 0] = data[i + 3]
 
       return alpha
@@ -153,11 +152,11 @@
         if(state === "DISABLED") {
           this._unbindEvents()
           this._checkPointer()
-          if(!imghash)
+          if(!imghash && this.style)
             this.style.cssText += "-webkit-filter:grayscale(80%);"
         } else if(!this.domBinded) {
           this._bindEvents()
-          this.style.cssText += NOFILTER
+          this.style && (this.style.cssText += NOFILTER)
         }
 
         this.currentState = STATES[state]
@@ -212,18 +211,19 @@
               this.style.cssText += this._getShadowFilter(this.options.glowColorPress)
             this._triggerEvent(e.type, e)
             this.setState("PRESSED")
+            this.allowClick = 1
           }
           break
         case "touchend":
         case "mouseup":
           this._checkPointer(e)
-console.debug("touchend", this._getX(e), this._getY(e), this.allowPointer, this.imgdata, this._getAlphaPixel(this._getX(e), this._getY(e)))
-          if(this.allowPointer) {
+          if(this.allowPointer && this.allowClick) {
             if(this.options.glow)
               this.style.cssText += this._getShadowFilter()
             this._triggerEvent(e.type, e)
             this._triggerEvent("click", e)
             this.setState("ENABLED")
+            this.allowClick = 0
           }
       }
     },
@@ -241,13 +241,14 @@ console.debug("touchend", this._getX(e), this._getY(e), this.allowPointer, this.
       if(e && this._getAlphaPixel(this._getX(e), this._getY(e)) >= this.options.threshold) {
         if(!this.allowPointer) {
           this.allowPointer = 1
-          this.style.cssText += "cursor:pointer;" + (this.options.glow ? this._getShadowFilter() : "")
+          this.style.cssText += (ISMOBILE ? "" : "cursor:pointer;") + (this.options.glow ? this._getShadowFilter() : "")
           this._triggerEvent("mouseover", e)
         }
       } else if(this.allowPointer || !e) {
-        this.allowPointer = 0
-        this.style.cssText += "cursor:default;" + (this.options.glow ? NOFILTER : "")
+        this.allowClick = this.allowPointer = 0
+        this.style.cssText += (ISMOBILE ? "" : "cursor:default;") + (this.options.glow ? NOFILTER : "")
         this._triggerEvent("mouseout", e)
+        this.setState("ENABLED")
       }
     },
     _getImage: function(src) {
